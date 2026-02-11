@@ -80,11 +80,6 @@ lemma rem_lt_Δ (a : ℝ) : rem_of a < Δ a := by
   exact m
 
 
-/-- 表記ゆれ対策：`halfULP e = (1/2) * Δ e = Δ e / 2` -/
-
-
-
-
 noncomputable def RNs (a : ℝ)   :=
   if __ : rem_of a  <  Δ a *(1/2) then
     (K_of a  : ℝ) *  Δ a
@@ -108,8 +103,6 @@ lemma Fmin_pos : 0 < Fmin := by
     have h2 : (0 : ℝ) < (2 : ℝ) := by
        norm_num
     simpa [Fmin] using (zpow_pos h2 (-1022: ℤ))
-@[simp] lemma halfULP_eq_halfΔ (a : ℝ ) : halfULP a = (1/2) * Δ a := by
-  simp [halfULP, Δ]
 @[simp] lemma halfΔ_eq_div (a : ℝ ) : (1/2 : ℝ) * Δ a = Δ a / 2 := by
   ring
 
@@ -453,7 +446,7 @@ theorem teiri2_abs
       exact teiri2_pos a δ hxrange' hRN
 
 theorem teiri1o (a : ℝ)  (ha : Fmin ≤ |a| ∧  |a| ≤ Rsup) :
-  |a - RN_normal ⟨a, ha⟩| ≤ halfULP a := by
+  |a - RN_normal ⟨a, ha⟩| ≤ u * ufp a := by
   classical
 
   have hc   : 0 < Δ a := by simpa [Δ] using Δ_pos a
@@ -507,10 +500,15 @@ theorem teiri1o (a : ℝ)  (ha : Fmin ≤ |a| ∧  |a| ≤ Rsup) :
    have hdist : |a - RN_normal ⟨a, ha⟩| = rem_of a := by
     simp [hRN_normal]
     rw[← Δ,abs_k]
+   have huufp : Δ a / 2 = u * ufp a := by
+    calc
+      Δ a / 2 = (1 / 2 : ℝ) * Δ a := by ring
+      _ = (1 / 2 : ℝ) * ulp a := by simp [Δ]
+      _ = u * ufp a := by simpa [mul_comm] using (same2 a).symm
    rw [hdist]
-   rw [halfULP_eq_halfΔ ]
-   rw [halfΔ_eq_div,]
-   exact itiou
+   calc
+    rem_of a ≤ Δ a / 2 := itiou
+    _ = u * ufp a := huufp
 
 
   case neg =>
@@ -533,18 +531,18 @@ theorem teiri1o (a : ℝ)  (ha : Fmin ≤ |a| ∧  |a| ≤ Rsup) :
     rw [hdistu]
     exact small
 
-   have hontonosaigo : |a - RN_normal ⟨a, ha⟩| ≤ halfULP a := by
-    rw [halfULP_eq_halfΔ, halfΔ_eq_div ]
-    exact saigo
+   have huufp : Δ a / 2 = u * ufp a := by
+    calc
+      Δ a / 2 = (1 / 2 : ℝ) * Δ a := by ring
+      _ = (1 / 2 : ℝ) * ulp a := by simp [Δ]
+      _ = u * ufp a := by simpa [mul_comm] using (same2 a).symm
 
-
-   exact hontonosaigo
+   calc
+    |a - RN_normal ⟨a, ha⟩| ≤ Δ a / 2 := saigo
+    _ = u * ufp a := huufp
 
 lemma teiri1o' (a:ℝ ) (ha : Fmin ≤ |a| ∧  |a| ≤ Rsup):|a - RN_normal ⟨a, ha⟩| ≤ ufp a * u := by
- have h :|a - RN_normal ⟨a, ha⟩|≤ halfULP a := by exact teiri1o a ha
- have h': |a - RN_normal ⟨a, ha⟩|≤ (1/2) * ulp a :=by
-  simpa [halfULP] using h
- simpa [same a] using h
+ simpa [mul_comm] using (teiri1o a ha)
 
 axiom ittanneo3 (x: ℝ ) (hx : x < (1 + u) * ufp x) (ha : Fmin ≤ |x| ∧  |x| ≤ Rsup): RN_normal ⟨x, ha⟩ = ufp x
 axiom ittanneo4 (x: ℝ ) (hx : x < (1 + u) * ufp x)(ha : Fmin ≤ |x| ∧  |x| ≤ Rsup) : ufp x < x
@@ -570,13 +568,7 @@ lemma ittanneo2 : - u / (1 + u) < 0 :=by
 
 
 lemma ittanneo6(x: ℝ )(ha : Fmin ≤ |x| ∧  |x| ≤ Rsup): |RN_normal ⟨x, ha⟩ - x|≤ u * ufp x := by
- have h : halfULP x = u * ufp x := by
-  unfold halfULP
-  simpa [mul_comm,eq_comm] using same2 x
- have h2 : |RN_normal ⟨x, ha⟩ - x|≤ halfULP x := by
-  simpa [abs_sub_comm ] using teiri1o x ha
- rw [h] at h2
- exact h2
+ simpa [abs_sub_comm] using teiri1o x ha
 
 axiom ceil_sub_half_int (n : ℤ) :
   Int.ceil ((n : ℝ) - (1/2 : ℝ)) = n
@@ -616,10 +608,7 @@ theorem teiri3o (x δ : ℝ )  (ha : Fmin ≤ |x| ∧  |x| ≤ Rsup)(hr : x = RN
    rw [h]
 
   have teiri1o' (a:ℝ ):|x - RN_normal ⟨x, ha⟩| ≤ ufp x * u := by
-   have h :|x - RN_normal ⟨x, ha⟩|≤ halfULP x := by exact teiri1o x ha
-   have h': |x - RN_normal ⟨x, ha⟩|≤ (1/2) * ulp x :=by
-    simpa [halfULP] using h
-   simpa [same x] using h'
+   simpa [mul_comm] using teiri1o x ha
   have hf :|x - RN_normal ⟨x, ha⟩| ≤  |ufp x * u| := by
    calc
     |x - RN_normal ⟨x, ha⟩| ≤ ufp x * u  := by exact teiri1o' x
