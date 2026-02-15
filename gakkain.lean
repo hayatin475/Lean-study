@@ -859,6 +859,98 @@ theorem hanni (a b : ℝ) (hRsup : |a + b| ≤ Rsup) :
   · right
     exact ⟨le_of_not_gt hFmin, hRsup⟩
 
-theorem teiri1_9 (a b δ : ℝ) (hrange : |a + b| ≤ Rsup)
+theorem teiri1_9_1 (a b δ : ℝ) (hrange : |a + b| ≤ Rsup)
+    (hsum_ne : a + b ≠ 0)
     (hRN : RN_nearest (a + b) hrange = (a + b) * (1 + δ)) :
     |δ| ≤ u / (1 + u) := by
+  let x : ℝ := a + b
+  have hxrange : |x| ≤ Rsup := by simpa [x] using hrange
+  rcases hanni a b hrange with hunder | hmiddle
+  · have hnear : RN_nearest x hxrange = x := by
+      have hUnder : Underflow x := by simpa [x] using hunder
+      unfold RN_nearest
+      split_ifs with hlt
+      · have huf : RN_underflow ⟨x, by simpa [Underflow] using hlt⟩ = x := by
+          simpa [x] using teiri1_8 (x := a) (y := b) hunder
+        simpa using huf
+      · exfalso
+        exact hlt (by simpa [Underflow] using hUnder)
+    have hmul : x * (1 + δ) = x := by
+      calc
+        x * (1 + δ) = RN_nearest x hxrange := by simpa [x] using hRN.symm
+        _ = x := hnear
+    have hzero_mul : x * δ = 0 := by linarith [hmul]
+    have hx_ne : x ≠ 0 := by simpa [x] using hsum_ne
+    have hδ0 : δ = 0 := by
+      exact (mul_eq_zero.mp hzero_mul).resolve_left hx_ne
+    rw [hδ0]
+    have hnonneg : 0 ≤ u / (1 + u) := by
+      exact div_nonneg hu_pos.le ittanneo5.le
+    simpa using hnonneg
+  · have hnear : RN_nearest x hxrange = RN_normal ⟨x, hmiddle⟩ := by
+      unfold RN_nearest
+      have hnot : ¬ |x| < Fmin := not_lt.mpr hmiddle.1
+      simp [hnot]
+    have hnormal : RN_normal ⟨x, hmiddle⟩ = x * (1 + δ) := by
+      calc
+        RN_normal ⟨x, hmiddle⟩ = RN_nearest x hxrange := by exact hnear.symm
+        _ = x * (1 + δ) := by simpa [x] using hRN
+    exact teiri2_abs x δ hmiddle hnormal
+
+theorem teiri1_9_2 (a b δ : ℝ) (hrange : |a + b| ≤ Rsup)
+    (hsum_ne : a + b ≠ 0)
+    (hRN : (a + b) = RN_nearest (a + b) hrange * (1 + δ)) :
+    |δ| ≤ u  := by
+  rcases hanni a b hrange with hunder | hmiddle
+  · have hnear : RN_nearest (a + b) hrange = a + b := by
+      unfold RN_nearest
+      split_ifs with hlt
+      · simpa using teiri1_8 (x := a) (y := b) hunder
+      · exfalso
+        exact hlt hunder
+    have hmul : (a + b) * (1 + δ) = a + b := by
+      calc
+        (a + b) * (1 + δ) = RN_nearest (a + b) hrange * (1 + δ) := by rw [hnear]
+        _ = a + b := by simpa using hRN.symm
+    have hzero_mul : (a + b) * δ = 0 := by linarith [hmul]
+    have hδ0 : δ = 0 := by
+      exact (mul_eq_zero.mp hzero_mul).resolve_left hsum_ne
+    rw [hδ0]
+    simpa using hu_pos.le
+  · have hnear : RN_nearest (a + b) hrange = RN_normal ⟨a + b, hmiddle⟩ := by
+      unfold RN_nearest
+      have hnot : ¬ |a + b| < Fmin := not_lt.mpr hmiddle.1
+      simp [hnot]
+    have hrnormal : (a + b) = RN_normal ⟨a + b, hmiddle⟩ * (1 + δ) := by
+      simpa [hnear] using hRN
+    exact teiri3o (a + b) δ hmiddle hrnormal
+
+theorem udgosa (a : ℝ) (ha : |a| < Fmin):
+  |a - RN_underflow ⟨a, ha⟩| ≤  Smin / 2 := by
+  have hEq : RN_underflow ⟨a, ha⟩ = a := by
+    simpa using (teiri1_8 a 0 (by simpa [Underflow] using ha))
+  rw [hEq]
+  have hS : 0 ≤ Smin / 2 := by
+    nlinarith [Smin_pos]
+  simpa using hS
+
+
+theorem teiri1_10
+    (a b δ η : ℝ)
+    (hrange : |a * b| ≤ Rsup)
+    (hRN : RN_nearest (a * b) hrange = a * b + δ + η)
+    (hδ0 : |a * b| < Fmin → δ = 0)
+    (hη0 : ¬(|a * b| < Fmin) → η = 0)
+  :
+    |δ| ≤ u * ufp (a * b)
+    ∧ |η| ≤ Smin / 2
+    ∧ δ * η = 0 := by
+  by_cases hUF : |a * b| < Fmin
+  · -- underflow の場合
+    have hδ : δ = 0 := hδ0 hUF
+    -- ここで δ=0 を使って証明を進める
+    sorry
+  · -- underflow でない場合
+    have hη : η = 0 := hη0 hUF
+    -- ここで η=0 を使って証明を進める
+    sorry
