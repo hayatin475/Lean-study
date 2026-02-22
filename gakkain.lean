@@ -479,7 +479,7 @@ theorem teiri2_pos (a δ : ℝ)   (harange : Fmin ≤  a ∧ a ≤ Rsup)
 
     exact answer
   ·
-    have h_gt' : (1 +u) * ufp a < a := by
+    have h_gt' : (1 + u) * ufp a < a := by
       rw [hxabs] at h_gt
       exact h_gt
 
@@ -949,8 +949,113 @@ theorem teiri1_10
   · -- underflow の場合
     have hδ : δ = 0 := hδ0 hUF
     -- ここで δ=0 を使って証明を進める
-    sorry
+    have hnear : RN_nearest (a * b) hrange = RN_underflow ⟨a * b, hUF⟩ := by
+      unfold RN_nearest
+      simp [hUF]
+    have hunder : RN_underflow ⟨a * b, hUF⟩ = a * b := by
+      simpa [Underflow] using (teiri1_8 (x := a * b) (y := 0) (by simpa [Underflow] using hUF))
+    have hη : η = 0 := by
+      have : a * b = a * b + δ + η := by
+        calc
+          a * b = RN_underflow ⟨a * b, hUF⟩ := by simpa using hunder.symm
+          _ = RN_nearest (a * b) hrange := by simp [hnear]
+          _ = a * b + δ + η := hRN
+      linarith [this, hδ]
+    have hδbound : |δ| ≤ u * ufp (a * b) := by
+      rw [hδ, abs_zero]
+      have hpos : 0 < u * ufp (a * b) := by
+        have hs : u * ufp (a * b) = (1 / 2 : ℝ) * ulp (a * b) := same2 (a * b)
+        rw [hs]
+        nlinarith [ulp_pos (a * b)]
+      exact le_of_lt hpos
+    have hηbound : |η| ≤ Smin / 2 := by
+      rw [hη, abs_zero]
+      nlinarith [Smin_pos]
+    exact ⟨hδbound, hηbound, by simp [hδ, hη]⟩
   · -- underflow でない場合
     have hη : η = 0 := hη0 hUF
-    -- ここで η=0 を使って証明を進める
-    sorry
+    have hmid : Fmin ≤ |a * b| ∧ |a * b| ≤ Rsup := ⟨le_of_not_gt hUF, hrange⟩
+    have hnear : RN_nearest (a * b) hrange = RN_normal ⟨a * b, hmid⟩ := by
+      unfold RN_nearest
+      simp [hUF]
+    have hδrepr : δ = RN_normal ⟨a * b, hmid⟩ - (a * b) := by
+      have : RN_normal ⟨a * b, hmid⟩ = a * b + δ := by
+        calc
+          RN_normal ⟨a * b, hmid⟩ = RN_nearest (a * b) hrange := by simp [hnear]
+          _ = a * b + δ + η := hRN
+          _ = a * b + δ := by simp [hη]
+      linarith
+    have hδbound : |δ| ≤ u * ufp (a * b) := by
+      rw [hδrepr]
+      simpa [abs_sub_comm] using (teiri1o (a * b) hmid)
+    have hηbound : |η| ≤ Smin / 2 := by
+      rw [hη, abs_zero]
+      nlinarith [Smin_pos]
+    exact ⟨hδbound, hηbound, by simp [hη]⟩
+
+theorem div_gosa
+    (a b δ η : ℝ)
+    (hrange : |a / b| ≤ Rsup)
+    (hRN : RN_nearest (a / b) hrange = a / b + δ + η)
+    (hδ0 : |a / b| < Fmin → δ = 0)
+    (hη0 : ¬(|a / b| < Fmin) → η = 0)
+  :
+    |δ| ≤ u * ufp (a / b)
+    ∧ |η| ≤ Smin / 2
+    ∧ δ * η = 0 := by
+  by_cases hUF : |a / b| < Fmin
+  · have hδ : δ = 0 := hδ0 hUF
+    have hnear : RN_nearest (a / b) hrange = RN_underflow ⟨a / b, hUF⟩ := by
+      unfold RN_nearest
+      simp [hUF]
+    have hunder : RN_underflow ⟨a / b, hUF⟩ = a / b := by
+      simpa [Underflow] using (teiri1_8 (x := a / b) (y := 0) (by simpa [Underflow] using hUF))
+    have hη : η = 0 := by
+      have : a / b = a / b + δ + η := by
+        calc
+          a / b = RN_underflow ⟨a / b, hUF⟩ := by simpa using hunder.symm
+          _ = RN_nearest (a / b) hrange := by simp [hnear]
+          _ = a / b + δ + η := hRN
+      linarith [this, hδ]
+    have hδbound : |δ| ≤ u * ufp (a / b) := by
+      rw [hδ, abs_zero]
+      have hpos : 0 < u * ufp (a / b) := by
+        have hs : u * ufp (a / b) = (1 / 2 : ℝ) * ulp (a / b) := same2 (a / b)
+        rw [hs]
+        nlinarith [ulp_pos (a / b)]
+      exact le_of_lt hpos
+    have hηbound : |η| ≤ Smin / 2 := by
+      rw [hη, abs_zero]
+      nlinarith [Smin_pos]
+    exact ⟨hδbound, hηbound, by simp [hδ, hη]⟩
+  · have hη : η = 0 := hη0 hUF
+    have hmid : Fmin ≤ |a / b| ∧ |a / b| ≤ Rsup := ⟨le_of_not_gt hUF, hrange⟩
+    have hnear : RN_nearest (a / b) hrange = RN_normal ⟨a / b, hmid⟩ := by
+      unfold RN_nearest
+      simp [hUF]
+    have hδrepr : δ = RN_normal ⟨a / b, hmid⟩ - (a / b) := by
+      have : RN_normal ⟨a / b, hmid⟩ = a / b + δ := by
+        calc
+          RN_normal ⟨a / b, hmid⟩ = RN_nearest (a / b) hrange := by simp [hnear]
+          _ = a / b + δ + η := hRN
+          _ = a / b + δ := by simp [hη]
+      linarith
+    have hδbound : |δ| ≤ u * ufp (a / b) := by
+      rw [hδrepr]
+      simpa [abs_sub_comm] using (teiri1o (a / b) hmid)
+    have hηbound : |η| ≤ Smin / 2 := by
+      rw [hη, abs_zero]
+      nlinarith [Smin_pos]
+    exact ⟨hδbound, hηbound, by simp [hη]⟩
+
+theorem teiri1_11
+    (x y : ℝ)
+    (hxrange : |x| ≤ Rsup)
+    (hyrange : |y| ≤ Rsup)
+    (hsubrange : |x - y| ≤ Rsup)
+    (hx : RN_nearest x hxrange = x)
+    (hy : RN_nearest y hyrange = y)
+    (hxy : y / 2 ≤ x ∧ x ≤ 2 * y)
+  :
+    x - y = RN_nearest (x - y) hsubrange := by
+  sorry
