@@ -3,10 +3,7 @@ import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.Tactic
 import Mathlib.Data.Int.Basic
 
-
-
 namespace FloatLib
-
 
 noncomputable def u :ℝ  := 2 ^ (-53 : ℝ )
 
@@ -25,10 +22,6 @@ axiom same (a :ℝ ) : (ufp a) * u = (1 / 2) * ulp a
 lemma same2 (a :ℝ ) :u*(ufp a) =(1/2)*ulp a:= by
  have h :(ufp a) * u = (1/2)*ulp a:= by exact same a
  simpa [mul_comm] using h
-
-
-
-
 
 
 /-- 2のrpowは底が正なので常に正 -/
@@ -163,6 +156,14 @@ noncomputable def RN_underflow : {x : ℝ // Underflow x} → ℝ
   let k : ℤ := Int.ceil (t - (1/2 : ℝ))
   (sgn x) * (k : ℝ) * Smin
 
+noncomputable def RN_nearest (a : ℝ) (hsup : |a| ≤ Rsup) : ℝ :=
+  if hunder : |a| < Fmin then
+    have hunder' : Underflow a := by
+      simpa [Underflow] using hunder
+    RN_underflow ⟨a, hunder'⟩
+  else
+    have hmin : Fmin ≤ |a| := le_of_not_gt hunder
+    RN_normal ⟨a, ⟨hmin, hsup⟩⟩
 
 lemma hu_pos : 0 < u := by
   unfold u
@@ -175,15 +176,12 @@ lemma hu_ne : u ≠ 0 := by
 lemma hup : 0 ≤ |u| := by
   exact abs_nonneg u
 
+axiom hru (x: ℝ )(h :Fmin ≤  x ∧ x ≤ Rsup) (hx : x= (1+u)* ufp x) : RN (ufp x + 1 / 2 * ulp x) = ufp x
 
-#print ufp
-
-axiom hru (x: ℝ ) (hx : x= (1+u)* ufp x) : RN (ufp x + 1 / 2 * ulp x) = ufp x
 axiom hur (x: ℝ ) (hx : x < (1 + u) * ufp x) : RN x = ufp x
 axiom hux (x: ℝ ) (hx : x < (1 + u) * ufp x) : ufp x ≤  x
 axiom hbg (x :ℝ ) : |RN x| ≥  |ufp x|
 axiom RN_neg (x : ℝ) : RN (-x) = - RN x
-
 
 theorem teiri1o (a : ℝ)  (ha : Fmin ≤ |a| ∧  |a| ≤  Rsup) :
   |a - RN_normal ⟨a, ha⟩| ≤ u * ufp a := by
@@ -310,7 +308,7 @@ theorem teiri2_pos (a δ : ℝ)   (harange : Fmin ≤  a ∧ a ≤ Rsup)
       · simpa [abs_of_nonneg (le_trans Fmin_pos.le harange.1)] using harange.1
       ·
         have hnonneg : 0 ≤ a := le_trans Fmin_pos.le harange.1
-        simpa [abs_of_nonneg hnonneg] using (le_of_lt harange.2)
+        simpa [abs_of_nonneg hnonneg] using harange.2
     ⟩ = a * (1 + δ)) :
     |δ| ≤ u / (1 + u) := by
   have hRN' : RN a = a * (1 + δ) := by
@@ -447,7 +445,7 @@ theorem teiri2_pos (a δ : ℝ)   (harange : Fmin ≤  a ∧ a ≤ Rsup)
 
     have atai : RN a = ufp a := by
      have h : RN |a| = ufp a := by
-      rw[h_eq,add_mul, one_mul,same2 a,hru a]
+      rw[h_eq,add_mul, one_mul,same2 a,hru a harange]
       exact h_eq'
      simpa [hxabs] using h
 
@@ -478,7 +476,7 @@ theorem teiri2_pos (a δ : ℝ)   (harange : Fmin ≤  a ∧ a ≤ Rsup)
 
     exact answer
   ·
-    have h_gt' : (1 +u) * ufp a < a := by
+    have h_gt' : (1 + u) * ufp a < a := by
       rw [hxabs] at h_gt
       exact h_gt
 
@@ -487,7 +485,7 @@ theorem teiri2_pos (a δ : ℝ)   (harange : Fmin ≤  a ∧ a ≤ Rsup)
 
     have detekuru : |δ * a| ≤ u * ufp a := by
      have h : |RN a - a| ≤ u * ufp a := by
-      have h1 : Fmin ≤ |a| ∧ |a| < Rsup := by
+      have h1 : Fmin ≤ |a| ∧ |a| ≤ Rsup := by
         simpa [hxabs] using harange
       simpa [mul_comm,abs_sub_comm] using teiri1o a h1
      simpa [kateihennkei] using h
@@ -517,21 +515,21 @@ theorem teiri2_pos (a δ : ℝ)   (harange : Fmin ≤  a ∧ a ≤ Rsup)
 theorem teiri2_neg (a δ : ℝ)
     (hxrange : -Rsup ≤  a ∧ a ≤ -Fmin)
     (hRN : RN_normal ⟨a, by
+      have ha_nonpos : a ≤ 0 := le_trans hxrange.2 (neg_nonpos.mpr Fmin_pos.le)
       constructor
       ·
-        have hneg : a < 0 := lt_of_lt_of_le hxrange.2 (neg_nonpos.mpr Fmin_pos.le)
         have h' : Fmin ≤ -a := by simpa using (neg_le_neg hxrange.2)
-        simpa [abs_of_neg hneg] using h'
+        simpa [abs_of_nonpos ha_nonpos] using h'
       ·
-        have h' : -a < Rsup := by simpa using (neg_lt_neg hxrange.1)
-        exact le_of_lt h'
+        have h' : -a ≤ Rsup := by simpa using (neg_le_neg hxrange.1)
+        simpa [abs_of_nonpos ha_nonpos] using h'
     ⟩ = a * (1 + δ)) :
     |δ| ≤ u / (1 + u) := by
   have hRN' : RN a = a * (1 + δ) := by
     simpa [RN_normal, RN] using hRN
 
   set b : ℝ := -a
-  have hyrange : Fmin ≤ b ∧ b < Rsup := by
+  have hyrange : Fmin ≤ b ∧ b ≤ Rsup := by
     constructor
     ·
       have hle : a ≤ -Fmin := hxrange.2
@@ -539,9 +537,9 @@ theorem teiri2_neg (a δ : ℝ)
         simpa using (neg_le_neg hle)
       simpa [b] using this
     ·
-      have hlt : -Rsup < a := hxrange.1
-      have : -a < Rsup := by
-        simpa using (neg_lt_neg hlt)
+      have hlt : -Rsup ≤ a := hxrange.1
+      have : -a ≤ Rsup := by
+        simpa using (neg_le_neg hlt)
       simpa [b] using this
   have hRNy : RN b = b * (1 + δ) := by
     calc
@@ -560,7 +558,7 @@ theorem teiri2_abs
   (hRN : RN_normal ⟨a, by
       constructor
       · exact hxrange.1
-      · exact le_of_lt hxrange.2
+      · exact hxrange.2
     ⟩ = a * (1 + δ)) :
   |δ| ≤ u / (1 + u) := by
   have hx0 : a ≠ 0 := by
@@ -574,27 +572,22 @@ theorem teiri2_abs
   have hcases : a < 0 ∨ 0 < a := lt_or_gt_of_ne hx0
   cases hcases with
   | inl hxneg =>
-      have hxrange_neg : -Rsup < a ∧ a ≤ -Fmin := by
+      have hxrange_neg : -Rsup ≤ a ∧ a ≤ -Fmin := by
         constructor
-        · exact (abs_lt.mp hxrange.2).1
+        ·
+          have : -|a| ≤ a := by simpa using (neg_abs_le a)
+          exact le_trans (by simpa using (neg_le_neg hxrange.2)) this
         · have : Fmin ≤ -a := by
             simpa [abs_of_neg hxneg] using hxrange.1
           simpa using (neg_le_neg this)
       exact teiri2_neg a δ hxrange_neg hRN
 
   | inr hxpos =>
-      have hxrange' : Fmin ≤ a ∧ a < Rsup := by
+      have hxrange' : Fmin ≤ a ∧ a ≤ Rsup := by
         constructor
         · simpa [abs_of_pos hxpos] using hxrange.1
         · simpa [abs_of_pos hxpos] using hxrange.2
       exact teiri2_pos a δ hxrange' hRN
-
-
-lemma ittanneo6(x: ℝ )(ha : Fmin ≤ |x| ∧  |x| ≤ Rsup): |RN_normal ⟨x, ha⟩ - x|≤ u * ufp x := by
- simpa [abs_sub_comm] using teiri1o x ha
-
-axiom ceil_sub_half_int (n : ℤ) :
-  Int.ceil ((n : ℝ) - (1/2 : ℝ)) = n
 
 theorem teiri3o (x δ : ℝ )  (ha : Fmin ≤ |x| ∧  |x| ≤ Rsup)(hr : x = RN_normal ⟨x, ha⟩ * (1 + δ))
 : |δ| ≤ u:= by
@@ -655,7 +648,8 @@ theorem teiri3o (x δ : ℝ )  (ha : Fmin ≤ |x| ∧  |x| ≤ Rsup)(hr : x = RN
    simp [div_eq_mul_inv, mul_assoc] at *
    simpa [mul_assoc, mul_left_comm, mul_comm, hne]
     using h'
-  have hu : 0 < |u| :=by simpa [abs_of_pos] using hu_ne
+  have hu : 0 < |u| := by
+    simpa [abs_of_pos hu_pos] using hu_pos
   have hle : |u| * |ufp x| / |RN_normal ⟨x, ha⟩| ≤  |u|:= by
    have hden : |ufp x| /|RN_normal ⟨x, ha⟩| ≤  1 := by
     exact (div_le_one hpo).2 (by
@@ -697,8 +691,10 @@ axiom underflow_abs_eq_zsmul_Smin (z : ℝ) (hz : Underflow z) :
 
 axiom sgn_mul_abs_real (z : ℝ) : sgn z * |z| = z
 
+axiom ceil_sub_half_int (n : ℤ) :
+  Int.ceil ((n : ℝ) - (1/2 : ℝ)) = n
 
-lemma teiri1_8_underflow(x y : ℝ)(h : Underflow (x + y)) :RN_underflow ⟨x + y, h⟩ = x + y := by
+lemma teiri1_8 (x y : ℝ)(h : Underflow (x + y)) :RN_underflow ⟨x + y, h⟩ = x + y := by
   dsimp [RN_underflow]
   have hSmin : 0 < (2 : ℝ) ^ (-1074 : ℤ) := by
    have h2 : (0 : ℝ) < 2 := by norm_num
@@ -784,11 +780,6 @@ lemma teiri1_8_underflow(x y : ℝ)(h : Underflow (x + y)) :RN_underflow ⟨x + 
       exact hno1
 
     exact hno
-
-
-
-
-
   -- ③ underflow 仮定
   have hsmall : |x + y| < Fmin := h
 
@@ -845,5 +836,230 @@ lemma teiri1_8_underflow(x y : ℝ)(h : Underflow (x + y)) :RN_underflow ⟨x + 
             rw [hgrid]
     _ = x + y := by
             simpa using (sgn_mul_abs_real (x + y))
-
   exact hgrid'
+
+lemma teiri1_8_2 (x y : ℝ) (h : Underflow (x - y)) :
+    RN_underflow ⟨x - y, h⟩ = x - y := by
+  have h' : Underflow (x + (-y)) := by
+    simpa [sub_eq_add_neg] using h
+  simpa [sub_eq_add_neg] using teiri1_8 (x := x) (y := -y) h'
+
+theorem hanni (a b : ℝ) (hRsup : |a + b| ≤ Rsup) :
+    Underflow (a + b) ∨ middle (a + b) := by
+  by_cases hFmin : |a + b| < Fmin
+  · left
+    exact hFmin
+  · right
+    exact ⟨le_of_not_gt hFmin, hRsup⟩
+
+theorem teiri1_9_1 (a b δ : ℝ) (hrange : |a + b| ≤ Rsup)
+    (hsum_ne : a + b ≠ 0)
+    (hRN : RN_nearest (a + b) hrange = (a + b) * (1 + δ)) :
+    |δ| ≤ u / (1 + u) := by
+  let x : ℝ := a + b
+  have hxrange : |x| ≤ Rsup := by simpa [x] using hrange
+  rcases hanni a b hrange with hunder | hmiddle
+  · have hnear : RN_nearest x hxrange = x := by
+      have hUnder : Underflow x := by simpa [x] using hunder
+      unfold RN_nearest
+      split_ifs with hlt
+      · have huf : RN_underflow ⟨x, by simpa [Underflow] using hlt⟩ = x := by
+          simpa [x] using teiri1_8 (x := a) (y := b) hunder
+        simpa using huf
+      · exfalso
+        exact hlt (by simpa [Underflow] using hUnder)
+    have hmul : x * (1 + δ) = x := by
+      calc
+        x * (1 + δ) = RN_nearest x hxrange := by simpa [x] using hRN.symm
+        _ = x := hnear
+    have hzero_mul : x * δ = 0 := by linarith [hmul]
+    have hx_ne : x ≠ 0 := by simpa [x] using hsum_ne
+    have hδ0 : δ = 0 := by
+      exact (mul_eq_zero.mp hzero_mul).resolve_left hx_ne
+    rw [hδ0]
+    have hnonneg : 0 ≤ u / (1 + u) := by
+      exact div_nonneg hu_pos.le ittanneo5.le
+    simpa using hnonneg
+  · have hnear : RN_nearest x hxrange = RN_normal ⟨x, hmiddle⟩ := by
+      unfold RN_nearest
+      have hnot : ¬ |x| < Fmin := not_lt.mpr hmiddle.1
+      simp [hnot]
+    have hnormal : RN_normal ⟨x, hmiddle⟩ = x * (1 + δ) := by
+      calc
+        RN_normal ⟨x, hmiddle⟩ = RN_nearest x hxrange := by exact hnear.symm
+        _ = x * (1 + δ) := by simpa [x] using hRN
+    exact teiri2_abs x δ hmiddle hnormal
+
+theorem teiri1_9_1_sub (a b δ : ℝ) (hrange : |a - b| ≤ Rsup)
+    (hsum_ne : a - b ≠ 0)
+    (hRN : RN_nearest (a - b) hrange = (a - b) * (1 + δ)) :
+    |δ| ≤ u / (1 + u) := by
+  have hrange' : |a + (-b)| ≤ Rsup := by
+    simpa [sub_eq_add_neg] using hrange
+  have hsum_ne' : a + (-b) ≠ 0 := by
+    simpa [sub_eq_add_neg] using hsum_ne
+  have hRN' : RN_nearest (a + (-b)) hrange' = (a + (-b)) * (1 + δ) := by
+    simpa [sub_eq_add_neg] using hRN
+  simpa [sub_eq_add_neg] using teiri1_9_1 (a := a) (b := -b) (δ := δ) hrange' hsum_ne' hRN'
+
+theorem teiri1_9_2 (a b δ : ℝ) (hrange : |a + b| ≤ Rsup)
+    (hsum_ne : a + b ≠ 0)
+    (hRN : (a + b) = RN_nearest (a + b) hrange * (1 + δ)) :
+    |δ| ≤ u  := by
+  rcases hanni a b hrange with hunder | hmiddle
+  · have hnear : RN_nearest (a + b) hrange = a + b := by
+      unfold RN_nearest
+      split_ifs with hlt
+      · simpa using teiri1_8 (x := a) (y := b) hunder
+      · exfalso
+        exact hlt hunder
+    have hmul : (a + b) * (1 + δ) = a + b := by
+      calc
+        (a + b) * (1 + δ) = RN_nearest (a + b) hrange * (1 + δ) := by rw [hnear]
+        _ = a + b := by simpa using hRN.symm
+    have hzero_mul : (a + b) * δ = 0 := by linarith [hmul]
+    have hδ0 : δ = 0 := by
+      exact (mul_eq_zero.mp hzero_mul).resolve_left hsum_ne
+    rw [hδ0]
+    simpa using hu_pos.le
+  · have hnear : RN_nearest (a + b) hrange = RN_normal ⟨a + b, hmiddle⟩ := by
+      unfold RN_nearest
+      have hnot : ¬ |a + b| < Fmin := not_lt.mpr hmiddle.1
+      simp [hnot]
+    have hrnormal : (a + b) = RN_normal ⟨a + b, hmiddle⟩ * (1 + δ) := by
+      simpa [hnear] using hRN
+    exact teiri3o (a + b) δ hmiddle hrnormal
+
+theorem teiri1_9_2_sub (a b δ : ℝ) (hrange : |a - b| ≤ Rsup)
+    (hsum_ne : a - b ≠ 0)
+    (hRN : (a - b) = RN_nearest (a - b) hrange * (1 + δ)) :
+    |δ| ≤ u := by
+  have hrange' : |a + (-b)| ≤ Rsup := by
+    simpa [sub_eq_add_neg] using hrange
+  have hsum_ne' : a + (-b) ≠ 0 := by
+    simpa [sub_eq_add_neg] using hsum_ne
+  have hRN' : (a + (-b)) = RN_nearest (a + (-b)) hrange' * (1 + δ) := by
+    simpa [sub_eq_add_neg] using hRN
+  simpa [sub_eq_add_neg] using teiri1_9_2 (a := a) (b := -b) (δ := δ) hrange' hsum_ne' hRN'
+
+theorem udgosa (a : ℝ) (ha : |a| < Fmin):
+  |a - RN_underflow ⟨a, ha⟩| ≤  Smin / 2 := by
+  have hEq : RN_underflow ⟨a, ha⟩ = a := by
+    simpa using (teiri1_8 a 0 (by simpa [Underflow] using ha))
+  rw [hEq]
+  have hS : 0 ≤ Smin / 2 := by
+    nlinarith [Smin_pos]
+  simpa using hS
+
+theorem teiri3
+    (a b δ η : ℝ)
+    (hrange : |a * b| ≤ Rsup)
+    (hRN : RN_nearest (a * b) hrange = a * b + δ + η)
+    (hδ0 : |a * b| < Fmin → δ = 0)
+    (hη0 : ¬(|a * b| < Fmin) → η = 0)
+  :
+    |δ| ≤ u * ufp (a * b)
+    ∧ |η| ≤ Smin / 2
+    ∧ δ * η = 0 := by
+  by_cases hUF : |a * b| < Fmin
+  · -- underflow の場合
+    have hδ : δ = 0 := hδ0 hUF
+    -- ここで δ=0 を使って証明を進める
+    have hnear : RN_nearest (a * b) hrange = RN_underflow ⟨a * b, hUF⟩ := by
+      unfold RN_nearest
+      simp [hUF]
+    have hunder : RN_underflow ⟨a * b, hUF⟩ = a * b := by
+      simpa [Underflow] using (teiri1_8 (x := a * b) (y := 0) (by simpa [Underflow] using hUF))
+    have hη : η = 0 := by
+      have : a * b = a * b + δ + η := by
+        calc
+          a * b = RN_underflow ⟨a * b, hUF⟩ := by simpa using hunder.symm
+          _ = RN_nearest (a * b) hrange := by simp [hnear]
+          _ = a * b + δ + η := hRN
+      linarith [this, hδ]
+    have hδbound : |δ| ≤ u * ufp (a * b) := by
+      rw [hδ, abs_zero]
+      have hpos : 0 < u * ufp (a * b) := by
+        have hs : u * ufp (a * b) = (1 / 2 : ℝ) * ulp (a * b) := same2 (a * b)
+        rw [hs]
+        nlinarith [ulp_pos (a * b)]
+      exact le_of_lt hpos
+    have hηbound : |η| ≤ Smin / 2 := by
+      rw [hη, abs_zero]
+      nlinarith [Smin_pos]
+    exact ⟨hδbound, hηbound, by simp [hδ, hη]⟩
+  · -- underflow でない場合
+    have hη : η = 0 := hη0 hUF
+    have hmid : Fmin ≤ |a * b| ∧ |a * b| ≤ Rsup := ⟨le_of_not_gt hUF, hrange⟩
+    have hnear : RN_nearest (a * b) hrange = RN_normal ⟨a * b, hmid⟩ := by
+      unfold RN_nearest
+      simp [hUF]
+    have hδrepr : δ = RN_normal ⟨a * b, hmid⟩ - (a * b) := by
+      have : RN_normal ⟨a * b, hmid⟩ = a * b + δ := by
+        calc
+          RN_normal ⟨a * b, hmid⟩ = RN_nearest (a * b) hrange := by simp [hnear]
+          _ = a * b + δ + η := hRN
+          _ = a * b + δ := by simp [hη]
+      linarith
+    have hδbound : |δ| ≤ u * ufp (a * b) := by
+      rw [hδrepr]
+      simpa [abs_sub_comm] using (teiri1o (a * b) hmid)
+    have hηbound : |η| ≤ Smin / 2 := by
+      rw [hη, abs_zero]
+      nlinarith [Smin_pos]
+    exact ⟨hδbound, hηbound, by simp [hη]⟩
+
+theorem teiri4
+    (a b δ η : ℝ)
+    (hrange : |a / b| ≤ Rsup)
+    (hRN : RN_nearest (a / b) hrange = a / b + δ + η)
+    (hδ0 : |a / b| < Fmin → δ = 0)
+    (hη0 : ¬(|a / b| < Fmin) → η = 0)
+  :
+    |δ| ≤ u * ufp (a / b)
+    ∧ |η| ≤ Smin / 2
+    ∧ δ * η = 0 := by
+  by_cases hUF : |a / b| < Fmin
+  · have hδ : δ = 0 := hδ0 hUF
+    have hnear : RN_nearest (a / b) hrange = RN_underflow ⟨a / b, hUF⟩ := by
+      unfold RN_nearest
+      simp [hUF]
+    have hunder : RN_underflow ⟨a / b, hUF⟩ = a / b := by
+      simpa [Underflow] using (teiri1_8 (x := a / b) (y := 0) (by simpa [Underflow] using hUF))
+    have hη : η = 0 := by
+      have : a / b = a / b + δ + η := by
+        calc
+          a / b = RN_underflow ⟨a / b, hUF⟩ := by simpa using hunder.symm
+          _ = RN_nearest (a / b) hrange := by simp [hnear]
+          _ = a / b + δ + η := hRN
+      linarith [this, hδ]
+    have hδbound : |δ| ≤ u * ufp (a / b) := by
+      rw [hδ, abs_zero]
+      have hpos : 0 < u * ufp (a / b) := by
+        have hs : u * ufp (a / b) = (1 / 2 : ℝ) * ulp (a / b) := same2 (a / b)
+        rw [hs]
+        nlinarith [ulp_pos (a / b)]
+      exact le_of_lt hpos
+    have hηbound : |η| ≤ Smin / 2 := by
+      rw [hη, abs_zero]
+      nlinarith [Smin_pos]
+    exact ⟨hδbound, hηbound, by simp [hδ, hη]⟩
+  · have hη : η = 0 := hη0 hUF
+    have hmid : Fmin ≤ |a / b| ∧ |a / b| ≤ Rsup := ⟨le_of_not_gt hUF, hrange⟩
+    have hnear : RN_nearest (a / b) hrange = RN_normal ⟨a / b, hmid⟩ := by
+      unfold RN_nearest
+      simp [hUF]
+    have hδrepr : δ = RN_normal ⟨a / b, hmid⟩ - (a / b) := by
+      have : RN_normal ⟨a / b, hmid⟩ = a / b + δ := by
+        calc
+          RN_normal ⟨a / b, hmid⟩ = RN_nearest (a / b) hrange := by simp [hnear]
+          _ = a / b + δ + η := hRN
+          _ = a / b + δ := by simp [hη]
+      linarith
+    have hδbound : |δ| ≤ u * ufp (a / b) := by
+      rw [hδrepr]
+      simpa [abs_sub_comm] using (teiri1o (a / b) hmid)
+    have hηbound : |η| ≤ Smin / 2 := by
+      rw [hη, abs_zero]
+      nlinarith [Smin_pos]
+    exact ⟨hδbound, hηbound, by simp [hη]⟩
