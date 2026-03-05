@@ -36,13 +36,7 @@ lemma ulp_pos (a : ℝ) : 0 < ulp a := by
 
 noncomputable def K_of  (a : ℝ ) : Int := Int.floor (a / Δ a)
 noncomputable def rem_of (a : ℝ)  : ℝ := a - (K_of a  : ℝ) * Δ a
-noncomputable def RN (a : ℝ)   :=
-  if __ : rem_of a  ≤  Δ a *(1/2) then
-    (K_of a  : ℝ) *  Δ a
-  else
-    ((K_of a  + 1 : Int) : ℝ) *  Δ a
 
-/-- Δ は正（`ulp_pos` を流用） -/
 
 lemma Δ_pos (a : ℝ ) : 0 < Δ a := by
   simpa [Δ] using ulp_pos (a)
@@ -177,9 +171,62 @@ lemma hup : 0 ≤ |u| := by
   exact abs_nonneg u
 
 
-#print ufp
 
-axiom hru (x: ℝ ) (hx : x= (1+u)* ufp x) : RN (ufp x + 1 / 2 * ulp x) = ufp x
+lemma hΔ (x : ℝ) : Δ (ufp x + 1 / 2 * ulp x) = ulp x := by
+  simpa [Δ]
+
+lemma rem_of_half_ulp
+  (x : ℝ)
+  (hΔ : Δ (ufp x + 1 / 2 * ulp x) = ulp x)
+  (hufp : ∃ k : ℤ, ufp x = (k : ℝ) * ulp x)
+  (hulp : 0 < ulp x) :
+  rem_of (ufp x + 1 / 2 * ulp x) = 1/2 * ulp x := by
+  rcases hufp with ⟨k, hk⟩
+  have hne : ulp x ≠ 0 := ne_of_gt hulp
+
+  have hdiv :
+      (ufp x + 1 / 2 * ulp x) / ulp x = (k : ℝ) + 1 / 2 := by
+    calc
+      (ufp x + 1 / 2 * ulp x) / ulp x
+          = ((k : ℝ) * ulp x + 1 / 2 * ulp x) / ulp x := by
+              simp [hk]
+      _ = (k : ℝ) + 1 / 2 := by
+              simp [add_div, hne, mul_comm]
+
+  have hfloorUlp :
+      Int.floor ((ufp x + 1 / 2 * ulp x) / ulp x) = k := by
+    have hfloorHalf : Int.floor ((k : ℝ) + (1 / 2 : ℝ)) = k := by
+      have h1 : (k : ℝ) ≤ (k : ℝ) + (1 / 2 : ℝ) := by nlinarith
+      have h2 : (k : ℝ) + (1 / 2 : ℝ) < (k : ℝ) + 1 := by nlinarith
+      exact (Int.floor_eq_iff).2 ⟨h1, h2⟩
+    rw [hdiv]
+    exact hfloorHalf
+
+  have hΔ' : ulp (ufp x + 1 / 2 * ulp x) = ulp x := by
+    simpa [Δ] using hΔ
+
+  have hfloorΔ :
+      Int.floor ((ufp x + 1 / 2 * ulp x) / Δ (ufp x + 1 / 2 * ulp x)) = k := by
+    rw [Δ, hΔ']
+    exact hfloorUlp
+
+  calc
+    rem_of (ufp x + 1 / 2 * ulp x)
+        = (ufp x + 1 / 2 * ulp x)
+          - (Int.floor ((ufp x + 1 / 2 * ulp x) / Δ (ufp x + 1 / 2 * ulp x)) : ℝ)
+            * Δ (ufp x + 1 / 2 * ulp x) := by
+            simp [rem_of, K_of]
+    _ = (ufp x + 1 / 2 * ulp x) - (k : ℝ) * ulp x := by
+          rw [hfloorΔ, hΔ]
+    _ = 1 / 2 * ulp x := by
+      calc
+        (ufp x + 1 / 2 * ulp x) - (k : ℝ) * ulp x
+            = ((k : ℝ) * ulp x + 1 / 2 * ulp x) - (k : ℝ) * ulp x := by
+                simp [hk]
+        _ = 1 / 2 * ulp x := by ring
+
+axiom hru (x: ℝ )(h :Fmin ≤  x ∧ x ≤ Rsup) (hx : x= (1+u)* ufp x) : RN (ufp x + 1 / 2 * ulp x) = ufp x
+
 axiom hur (x: ℝ ) (hx : x < (1 + u) * ufp x) : RN x = ufp x
 axiom hux (x: ℝ ) (hx : x < (1 + u) * ufp x) : ufp x ≤  x
 axiom hbg (x :ℝ ) : |RN x| ≥  |ufp x|
@@ -448,7 +495,7 @@ theorem teiri2_pos (a δ : ℝ)   (harange : Fmin ≤  a ∧ a ≤ Rsup)
 
     have atai : RN a = ufp a := by
      have h : RN |a| = ufp a := by
-      rw[h_eq,add_mul, one_mul,same2 a,hru a]
+      rw[h_eq,add_mul, one_mul,same2 a,hru a harange]
       exact h_eq'
      simpa [hxabs] using h
 
@@ -851,6 +898,12 @@ lemma teiri1_8 (x y : ℝ)(h : Underflow (x + y)) :RN_underflow ⟨x + y, h⟩ =
             simpa using (sgn_mul_abs_real (x + y))
   exact hgrid'
 
+lemma teiri1_8_2 (x y : ℝ) (h : Underflow (x - y)) :
+    RN_underflow ⟨x - y, h⟩ = x - y := by
+  have h' : Underflow (x + (-y)) := by
+    simpa [sub_eq_add_neg] using h
+  simpa [sub_eq_add_neg] using teiri1_8 (x := x) (y := -y) h'
+
 theorem hanni (a b : ℝ) (hRsup : |a + b| ≤ Rsup) :
     Underflow (a + b) ∨ middle (a + b) := by
   by_cases hFmin : |a + b| < Fmin
@@ -897,6 +950,18 @@ theorem teiri1_9_1 (a b δ : ℝ) (hrange : |a + b| ≤ Rsup)
         _ = x * (1 + δ) := by simpa [x] using hRN
     exact teiri2_abs x δ hmiddle hnormal
 
+theorem teiri1_9_1_sub (a b δ : ℝ) (hrange : |a - b| ≤ Rsup)
+    (hsum_ne : a - b ≠ 0)
+    (hRN : RN_nearest (a - b) hrange = (a - b) * (1 + δ)) :
+    |δ| ≤ u / (1 + u) := by
+  have hrange' : |a + (-b)| ≤ Rsup := by
+    simpa [sub_eq_add_neg] using hrange
+  have hsum_ne' : a + (-b) ≠ 0 := by
+    simpa [sub_eq_add_neg] using hsum_ne
+  have hRN' : RN_nearest (a + (-b)) hrange' = (a + (-b)) * (1 + δ) := by
+    simpa [sub_eq_add_neg] using hRN
+  simpa [sub_eq_add_neg] using teiri1_9_1 (a := a) (b := -b) (δ := δ) hrange' hsum_ne' hRN'
+
 theorem teiri1_9_2 (a b δ : ℝ) (hrange : |a + b| ≤ Rsup)
     (hsum_ne : a + b ≠ 0)
     (hRN : (a + b) = RN_nearest (a + b) hrange * (1 + δ)) :
@@ -925,6 +990,18 @@ theorem teiri1_9_2 (a b δ : ℝ) (hrange : |a + b| ≤ Rsup)
       simpa [hnear] using hRN
     exact teiri3o (a + b) δ hmiddle hrnormal
 
+theorem teiri1_9_2_sub (a b δ : ℝ) (hrange : |a - b| ≤ Rsup)
+    (hsum_ne : a - b ≠ 0)
+    (hRN : (a - b) = RN_nearest (a - b) hrange * (1 + δ)) :
+    |δ| ≤ u := by
+  have hrange' : |a + (-b)| ≤ Rsup := by
+    simpa [sub_eq_add_neg] using hrange
+  have hsum_ne' : a + (-b) ≠ 0 := by
+    simpa [sub_eq_add_neg] using hsum_ne
+  have hRN' : (a + (-b)) = RN_nearest (a + (-b)) hrange' * (1 + δ) := by
+    simpa [sub_eq_add_neg] using hRN
+  simpa [sub_eq_add_neg] using teiri1_9_2 (a := a) (b := -b) (δ := δ) hrange' hsum_ne' hRN'
+
 theorem udgosa (a : ℝ) (ha : |a| < Fmin):
   |a - RN_underflow ⟨a, ha⟩| ≤  Smin / 2 := by
   have hEq : RN_underflow ⟨a, ha⟩ = a := by
@@ -934,8 +1011,7 @@ theorem udgosa (a : ℝ) (ha : |a| < Fmin):
     nlinarith [Smin_pos]
   simpa using hS
 
-
-theorem teiri1_10
+theorem teiri3
     (a b δ η : ℝ)
     (hrange : |a * b| ≤ Rsup)
     (hRN : RN_nearest (a * b) hrange = a * b + δ + η)
@@ -993,7 +1069,7 @@ theorem teiri1_10
       nlinarith [Smin_pos]
     exact ⟨hδbound, hηbound, by simp [hη]⟩
 
-theorem div_gosa
+theorem teiri4
     (a b δ η : ℝ)
     (hrange : |a / b| ≤ Rsup)
     (hRN : RN_nearest (a / b) hrange = a / b + δ + η)
